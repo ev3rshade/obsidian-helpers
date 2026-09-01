@@ -1,0 +1,6 @@
+# Compiled binary
+/go-obsidian-helper
+
+# Test binaries and coverage output
+*.test
+*.out

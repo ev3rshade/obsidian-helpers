@@ -1,0 +1,15 @@
+version: "2"
+
+linters:
+  default: standard
+  enable:
+    - errcheck
+    - errorlint
+    - bodyclose
+    - nilerr
+    - unconvert
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
