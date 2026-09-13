@@ -2,12 +2,13 @@ package main
 
 import (
 	"flag"
-	"gopkg.in/yaml.v3"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
 const orphansOutFile = "! orphans.md"
@@ -23,6 +24,12 @@ type Config struct {
 
 var templateKeys []map[string]bool
 
+func Merge[T comparable](destination, source map[T]struct{}) {
+	for key := range source {
+		destination[key] = struct{}{}
+	}
+}
+
 func extractPropsKeys(content string) map[string]bool {
 	propsRegex := regexp.MustCompile(`(?s)^---\n(.*?)\n---`)
 	matches := propsRegex.FindStringSubmatch(content)
@@ -30,7 +37,7 @@ func extractPropsKeys(content string) map[string]bool {
 		return nil
 	}
 
-	var raw map[string]interface{}
+	var raw map[string]any
 	if err := yaml.Unmarshal([]byte(matches[1]), &raw); err != nil {
 		fmt.Println("Error parsing frontmatter:", err)
 		return nil
@@ -93,6 +100,69 @@ func usesTemplate(content string) bool {
 	return false
 }
 
+func getLinks(content string) []string {
+	matches := linkPattern.FindAllStringSubmatch(string(content), -1)
+	
+	var links []string
+	for _, m := range matches {
+		links = append(links, m[1])
+	}
+
+	return links
+}
+
+func containsDangling(cfg *Config, links []string) bool {
+	for _, l := range links {
+
+		// ignore tag and index level links
+		if strings.Contains(l, "+") || strings.Contains(l, "!") {
+			continue
+		}
+
+		// strip alias ("Target|Alias") and heading/block refs ("Target#Heading")
+		target := l
+		if idx := strings.IndexAny(target, "|#"); idx != -1 {
+			target = target[:idx]
+		}
+		target = strings.TrimSpace(target)
+
+		candidate := target
+		if filepath.Ext(candidate) == "" {
+			candidate += ".md"
+		}
+
+		_, err := os.Stat(filepath.Join(cfg.Path, candidate))
+		if err != nil {
+			return true
+		}
+	}
+
+	return false
+}
+
+func isOrphan(filename string) bool {
+	return len(filename) > 0
+}
+
+func writeFiles(cfg *Config, outFile string, files []string) error {
+	fout, err := os.OpenFile(filepath.Join(cfg.Path, outFile), os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		fmt.Println("Error opening file:", err)
+		return err
+	}
+	defer fout.Close()
+
+	for _, f := range files {
+		_, err := fout.WriteString("[[" + f + "]]" + "\n")
+		if err != nil {
+			fmt.Print("Error: writing to file", err)
+			return err
+		}
+	}
+
+	return nil
+}
+
 func parseFlags() *Config {
 	var cfg Config
 
@@ -124,96 +194,40 @@ func run() {
 				fmt.Println("Error reading file:", err)
 				continue
 			}
+			
+			// 1 find all links in the file
+			links := getLinks(string(content))
 
-			// template checker
+			// 2 check to see if the file follows a recent template
 			if !usesTemplate(string(content)) {
 				badFormat = append(badFormat, file.Name())
 			}
 
-			// orphans and dangling links
-
-			matches := linkPattern.FindAllStringSubmatch(string(content), -1)
-
-			var links []string
-			for _, m := range matches {
-				links = append(links, m[1])
+			// 3 Check if the file contains dangling links			
+			if containsDangling(cfg, links) {
+				dangling = append(dangling, file.Name())
 			}
 
-			for _, l := range links {
-
-				// ignore tag and index level links
-				if strings.Contains(l, "+") || strings.Contains(l, "!") {
-					continue
-				}
-
-				// strip alias ("Target|Alias") and heading/block refs ("Target#Heading")
-				target := l
-				if idx := strings.IndexAny(target, "|#"); idx != -1 {
-					target = target[:idx]
-				}
-				target = strings.TrimSpace(target)
-
-				candidate := target
-				if filepath.Ext(candidate) == "" {
-					candidate += ".md"
-				}
-
-				_, err := os.Stat(filepath.Join(cfg.Path, candidate))
-				if err != nil {
-					dangling = append(dangling, file.Name())
-					break
-				}
-			}
-
-			if len(links) == 0 {
+			// 4 Check if the file is an orphan
+			if len(links) == 0 && isOrphan(file.Name()) {
 				orphans = append(orphans, file.Name())
 			}
 		}
 	}
 
-	outFile, err := os.OpenFile(filepath.Join(cfg.Path, badFormatOutFile), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	err = writeFiles(cfg, badFormatOutFile, badFormat)
 	if err != nil {
-		fmt.Println("Error opening file:", err)
-		return
-	}
-	defer outFile.Close()
-
-	for _, bf := range badFormat {
-		_, err := outFile.WriteString("[[" + bf + "]]" + "\n")
-		if err != nil {
-			fmt.Print("Error: writing to file", err)
-			return
-		}
+		fmt.Println("Error writing files:", err)
 	}
 
-	outFile, err = os.OpenFile(filepath.Join(cfg.Path, orphansOutFile), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	err = writeFiles(cfg, danglingOutFile, dangling)
 	if err != nil {
-		fmt.Println("Error opening file:", err)
-		return
+		fmt.Println("Error writing files:", err)
 	}
-	defer outFile.Close()
-
-	for _, o := range orphans {
-		_, err := outFile.WriteString("[[" + o + "]]" + "\n")
-		if err != nil {
-			fmt.Print("Error: writing to file", err)
-			return
-		}
-	}
-
-	outFile, err = os.OpenFile(filepath.Join(cfg.Path, danglingOutFile), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	
+	err = writeFiles(cfg, orphansOutFile, orphans)
 	if err != nil {
-		fmt.Println("Error opening file:", err)
-		return
-	}
-	defer outFile.Close()
-
-	for _, d := range dangling {
-		_, err := outFile.WriteString("[[" + d + "]]" + "\n")
-		if err != nil {
-			fmt.Print("Error: writing to file", err)
-			return
-		}
+		fmt.Println("Error writing files:", err)
 	}
 }
 

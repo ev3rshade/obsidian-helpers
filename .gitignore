@@ -1,0 +1,58 @@
+# ---------------------------------------------------------------------------
+# Go Binaries & Executables
+# ---------------------------------------------------------------------------
+# Compiled applications (OS-specific extensions)
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# ---------------------------------------------------------------------------
+# Test Artifacts & Coverage
+# ---------------------------------------------------------------------------
+# Test binaries toolchain outputs (e.g., when running go test -c)
+*.test
+
+# Output of the go coverage tool
+*.out
+*.coverprofile
+profile.cov
+coverage.html
+
+# ---------------------------------------------------------------------------
+# Go Workspaces & Toolchain
+# ---------------------------------------------------------------------------
+# Go workspace files (used for local multi-module development)
+go.work
+go.work.sum
+
+# Go toolchain crash dumps
+panic.log
+
+# ---------------------------------------------------------------------------
+# Dependencies (Optional)
+# ---------------------------------------------------------------------------
+# Un-comment the next line only if you explicitly choose to vendor dependencies
+# vendor/
+
+# ---------------------------------------------------------------------------
+# Environment Variables & Secrets
+# ---------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+
+# ---------------------------------------------------------------------------
+# IDEs & System Files
+# ---------------------------------------------------------------------------
+# JetBrains (GoLand, IntelliJ)
+.idea/
+*.iml
+
+# VS Code
+.vscode/
+
+# Operating System files
+.DS_Store
+Thumbs.db
