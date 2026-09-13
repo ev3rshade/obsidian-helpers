@@ -64,14 +64,13 @@ func ParseVault(cfg types.Config) (Vault, error) {
 		fPath := filepath.Join(cfg.NotesPath, f.Name())
 		currID := vault.intern(fPath)
 
-		// update note, out, in
+		// update id, note, out, in
 		vault.notes[currID] = Note{
 			Path:    fPath,
 			Title:   f.Name(),
 			Aliases: nil,
 			Exists:  true,
 		}
-
 	}
 
 	return vault, nil
@@ -133,7 +132,7 @@ func CleanVault(cfg types.Config, vault *Vault) error {
 			}
 
 			// 3 Check if the file contains dangling links
-			if ContainsDangling(vault, links) {
+			if ContainsDangling(cfg, vault, links) {
 				dangling = append(dangling, file.Name())
 			}
 

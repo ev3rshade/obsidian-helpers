@@ -5,7 +5,10 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
 	"gopkg.in/yaml.v3"
+
+	"go-obsidian-helper/types"
 )
 
 var linkPattern = regexp.MustCompile(`\[\[([^]]+)\]\]`)
@@ -29,7 +32,6 @@ func ExtractPropsKeys(content string) map[string]bool {
 	}
 	return keys
 }
-
 
 func UsesTemplate(content string, vault *Vault) bool {
 	noteKeys := ExtractPropsKeys(content)
@@ -55,7 +57,7 @@ func UsesTemplate(content string, vault *Vault) bool {
 
 func GetLinks(content string) []string {
 	matches := linkPattern.FindAllStringSubmatch(string(content), -1)
-	
+
 	var links []string
 	for _, m := range matches {
 		links = append(links, m[1])
@@ -64,14 +66,8 @@ func GetLinks(content string) []string {
 	return links
 }
 
-func ContainsDangling(vault *Vault, links []string) bool {
+func ContainsDangling(cfg types.Config, vault *Vault, links []string) bool {
 	for _, l := range links {
-
-		// ignore tag and index level links
-		if strings.Contains(l, "+") || strings.Contains(l, "!") {
-			continue
-		}
-
 		// strip alias ("Target|Alias") and heading/block refs ("Target#Heading")
 		target := l
 		if idx := strings.IndexAny(target, "|#"); idx != -1 {
@@ -79,13 +75,13 @@ func ContainsDangling(vault *Vault, links []string) bool {
 		}
 		target = strings.TrimSpace(target)
 
-		candidate := target
-		if filepath.Ext(candidate) == "" {
-			candidate += ".md"
+		if filepath.Ext(target) == "" {
+			target += ".md"
 		}
+		target = filepath.Join(cfg.NotesPath, target)
 
-		id := vault.ids[candidate]
-		if !vault.notes[id].Exists {
+		id, ok := vault.ids[target]
+		if !ok || !vault.notes[id].Exists {
 			return true
 		}
 	}
