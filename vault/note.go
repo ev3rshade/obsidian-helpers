@@ -1,9 +1,14 @@
 package vault
 
 import (
+	"fmt"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"gopkg.in/yaml.v3"
 )
+
+var linkPattern = regexp.MustCompile(`\[\[([^]]+)\]\]`)
 
 func ExtractPropsKeys(content string) map[string]bool {
 	propsRegex := regexp.MustCompile(`(?s)^---\n(.*?)\n---`)
@@ -26,13 +31,13 @@ func ExtractPropsKeys(content string) map[string]bool {
 }
 
 
-func UsesTemplate(content string) bool {
-	noteKeys := extractPropsKeys(content)
+func UsesTemplate(content string, vault *Vault) bool {
+	noteKeys := ExtractPropsKeys(content)
 	if noteKeys == nil {
 		return false
 	}
 
-	for _, required := range templateKeys {
+	for _, required := range vault.templateKeys {
 		match := true
 		for k := range required {
 			if !noteKeys[k] {
@@ -59,9 +64,7 @@ func GetLinks(content string) []string {
 	return links
 }
 
-
-
-func ContainsDangling(cfg *Config, links []string) bool {
+func ContainsDangling(vault *Vault, links []string) bool {
 	for _, l := range links {
 
 		// ignore tag and index level links
@@ -81,8 +84,8 @@ func ContainsDangling(cfg *Config, links []string) bool {
 			candidate += ".md"
 		}
 
-		_, err := os.Stat(filepath.Join(cfg.Path, candidate))
-		if err != nil {
+		id := vault.ids[candidate]
+		if !vault.notes[id].Exists {
 			return true
 		}
 	}
@@ -90,6 +93,6 @@ func ContainsDangling(cfg *Config, links []string) bool {
 	return false
 }
 
-func isOrphan(filename string) bool {
+func IsOrphan(filename string) bool {
 	return len(filename) > 0
 }
